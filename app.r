@@ -7,13 +7,16 @@
 #    http://shiny.rstudio.com/
 #
 
-library(shiny)
+#Load required dependencies
 
-# Define UI for application that draws a histogram
+library(shiny)
+library(ggplot2)
+
+# Define UI for application
 ui <- fluidPage(
 
     # Application title
-    titlePanel("Old Faithful Geyser Data"),
+    titlePanel("Linear Modeling"),
 
     # Sidebar with a slider input for number of bins 
     sidebarLayout(
@@ -54,21 +57,36 @@ ui <- fluidPage(
             radioButtons("disp", "Display",
                          choices = c(Head = "head",
                                      All = "all"),
-                         selected = "head")
+                         selected = "head"),
+            
+            #Create action button to plot the scatterplot
+            actionButton("scatter", "Plot scatterplot"),
+            
+            #Create action button to plot linear model and associated data values
+            actionButton("lm", "Plot linear model")
         ),
+        
+           
 
-        # Show a plot of the generated distribution
+        # Plotting the scatterplot and associated information
         mainPanel(
            plotOutput("distPlot"),
            plotOutput("lmPlot"),
+           textOutput("R-squared Values"),
+           textOutput("rsquared"),
+           textOutput("intercept"),
+           textOutput("slope"),
+           textOutput("pvalue"),
            tableOutput("contents")
         )
     )
 )
 
-# Define server logic required to draw a histogram
+
+# Define server logic 
 server <- function(input, output) {
 
+    
     dataInput <- reactive({
         req(input$file1)
         
@@ -79,31 +97,60 @@ server <- function(input, output) {
         return(df)
     })
     
-    # output$distPlot <- renderPlot({
-    #     # generate bins based on input$bins from ui.R
-    #     x    <- faithful[, 2]
-    #     bins <- seq(min(x), max(x), length.out = input$bins + 1)
-    #     print(bins)
-    #     # draw the histogram with the specified number of bins
-    #     hist(x, breaks = bins, col = 'darkgray', border = 'white')
-    # })
-    # 
-    
-    output$distPlot <- renderPlot({
-        plot(dataInput()$x,dataInput()$y)
+    #Action button for linear model
+    lmPlot <- eventReactive(input$lm, {
+        lm(y ~ x, data = dataInput())
     })
     
-    output$lmtPlot <- renderPlot({
-        plot(dataInput()$x,dataInput()$y)
+    #Action button for scatterplot
+     distPlot <- eventReactive(input$scatter, {
+         plot(x = dataInput()$x, y = dataInput()$y, main = "Scatterplot")
+         lm(y ~ x, data = dataInput())
+    })   
+
+     output$distPlot <- renderPlot({
+         ggplot(distPlot()$model, aes_string(x = names(distPlot()$model)[2], y = names(distPlot()$model)[1])) + 
+             geom_point() +
+             ggtitle("Scatterplot") +
+             theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+     })
+    
+
+
+    
+    # Create outputs for slope, intercept, correlation coefficient, and p-value for the linear model
+    output$lmPlot <- renderPlot({
+        ggplot(lmPlot()$model, aes_string(x = names(lmPlot()$model)[2], y = names(lmPlot()$model)[1])) + 
+            geom_point() +
+            stat_smooth(method = "lm", col = "blue") +
+            ggtitle("Linear Model") +
+            theme(plot.title = element_text(hjust = 0.5, face = "bold")) +
+            geom_label(aes(x = 0, y = 7.5), hjust = 0, 
+                       label = paste("Adj R2 = ",signif(summary(lmPlot())$adj.r.squared, 5),
+                                     "\nIntercept =",signif(lmPlot()$coef[[1]],5 ),
+                                     " \nSlope =",signif(lmPlot()$coef[[2]], 5),
+                                     " \nP =",signif(summary(lmPlot())$coef[2,4], 5)))
     })
     
+    # Label the graph with the generated values for slope, intercept, correlation coeffcient, and p-value
+    output$rsquared <- renderText({
+        print(paste("Adj R2 = ",signif(summary(lmPlot())$adj.r.squared, 5)))
+    })
     
+    output$intercept <- renderText({
+        print(paste("Intercept =",signif(lmPlot()$coef[[1]],5)))
+    })
+    
+    output$slope <- renderText({
+        print(paste("Slope =",signif(lmPlot()$coef[[2]], 5)))
+    })
+    
+    output$pvalue <- renderText({
+        print(paste("P =",signif(summary(lmPlot())$coef[2,4], 5)))
+    })
+    
+    # Show the table of plotted x and y values
     output$contents <- renderTable({
-        
-        # input$file1 will be NULL initially. After the user selects
-        # and uploads a file, head of that data file by default,
-        # or all rows if selected, will be shown.
-        
         
         if(input$disp == "head") {
             return(head(dataInput()))
