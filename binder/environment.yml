@@ -12,6 +12,9 @@ dependencies:
   - r-reshape2
   - r-tidyverse
   - r-shiny
+  - r-limma
+  - r-edger
+  - r-deseq2
   - pip
   - pip:
     - pandas
